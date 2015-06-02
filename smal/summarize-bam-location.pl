@@ -8,7 +8,10 @@ use Data::Dumper;
 use Getopt::Long;
 use PerlIO::gzip;
 no if $] >= 5.017011, warnings => 'experimental::smartmatch';
-use lib $ENV{GIT_REPO}."/hpcbio/smalheiser_scripts/v2/lib";
+
+use FindBin;
+use lib "$FindBin::RealBin/../lib";
+#use lib $ENV{GIT_REPO}."/hpcbio/smalheiser_scripts/v2/lib";
 use miRNA_DB;
 use BamUtils;
 use SampleUtils;

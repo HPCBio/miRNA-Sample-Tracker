@@ -11,22 +11,41 @@ use Data::Dumper;
 
 my $USAGE = <<USAGE;
 
-    $0 -d <DB_NAME> -c <CUTOFF>
+    $0 -d <DB_NAME> -format <tab/textile/md>
 
     This script will generate a summary table of the total number of mapped hits
     per sample, taking into account the sample sequence redundancy. User must
-    provide the SQLite3 database. An optional cutoff level can be added
-    (default=1, or keep everything)
+    provide the SQLite3 database.
 
 USAGE
 
 {
 
+    my %VALID = (
+        tab         => {
+                        'heading'   => \&to_tab,
+                        'header'    => \&to_tab,
+                        'row'       => \&to_tab,
+                       },
+        md          => {
+                        'heading'   => \&md_heading,
+                        'header'    => \&md_tbl_header,
+                        'row'       => \&generic_row,
+                       },
+        textile     => {
+                        'heading'   => \&textile_heading,
+                        'header'    => \&textile_tbl_header,
+                        'row'       => \&generic_row,
+                       }
+    );
+
     my $dbfile;
-    #my $cutoff = 1;
-    #my $sum = 0;
+    my $format = 'tab';
+    my $prefix;
 
     GetOptions('db=s'       => \$dbfile,
+               'format:s'   => \$format,
+               'prefix:s'   => \$prefix
                #'cutoff=i'   => \$cutoff,
                #'sum=i'      => \$sum
                );
@@ -35,6 +54,12 @@ USAGE
         die "Database $dbfile doesn't exist";
     }
 
+    if (! exists $VALID{ $format }) {
+        die "Format $format not supported\n\n$USAGE";
+    }
+    
+    my $callbacks = $VALID{ $format };
+    
     my $dbh = DBI->connect("dbi:SQLite:$dbfile","","",{RaiseError =>1})
         or die "Couldn't connect to database: " . DBI->errstr;
     $dbh->do("PRAGMA foreign_keys = ON");
@@ -42,13 +67,12 @@ USAGE
     $dbh->do('PRAGMA synchronous = 0');      # Non transaction safe!!!
     $dbh->do('PRAGMA cache_size = 8000000'); # 2 GB dynamic cache increase
                                              # makes index creation faster
-
-    counts($dbh);
-
+    
+    counts($dbh, $callbacks);
 }
 
 sub counts {
-    my ($dbh) = @_;
+    my ($dbh, $fmt, $outfh) = @_;
 
     # need this to get all possible samples (so columns are known in advance)
     #my $db_id = get_db_names($dbh, $ref);
@@ -71,6 +95,7 @@ SQL
 SELECT sm.name, sm.sample_id, SUM(sm2s.count) AS Total
     FROM sample AS sm
     JOIN sample2srna AS sm2s ON (sm.sample_id=sm2s.sample_id)
+    WHERE
         sm2s.srna_id IN (
             SELECT s2d.srna_id
                 FROM srna2db AS s2d
@@ -84,8 +109,6 @@ SELECT sm.name, sm.sample_id, SUM(sm2s.count) AS Total
     JOIN sample2srna AS sm2s ON (sm.sample_id=sm2s.sample_id)
     GROUP BY sm.sample_id
 SQL
-
-    open(my $outfh, '>', "mapping.txt") or die $!;
 
     my %summary;
     
@@ -115,10 +138,15 @@ SQL
     
     say STDERR "Finished any_mapped";
 
-    say $outfh join("\t", "Name", "Raw_Cutoff", map {
+    $fmt->{heading}('Mapping summary');
+    
+    $fmt->{header}(
+        ["Name",
+         "Total Reads",
+         map {
         my $id  = $_;
-        join("\t", map {"$id $_"} ('Mapped', 'Percent Mapped'));
-        } (@refnames, 'any_mapped'));
+        map {"$id $_"} ('Mapped', 'Percent Mapped');
+        } (@refnames, 'any_mapped')]);
     
     $all_cts->bind_columns(\$nm, \$sid, \$total);
     $all_cts->execute() or die $all_cts->errstr;
@@ -127,15 +155,14 @@ SQL
         #say STDERR join("\t", $nm, $sid, $total);
         my @vals = ($nm, $total);
         
-        say $outfh join("\t",
+        $fmt->{row}([
                         $nm,
                         $total,
                         map { my $id = $_;
-                             join("\t",
-                                  $summary{$sid}{$id}{Mapped},
-                                  sprintf("%.2f", 100 * ($summary{$sid}{$id}{Mapped}/$total))
-                                  )
-                             } (@refnames, 'any_mapped'));
+                 $summary{$sid}{$id}{Mapped},
+                 sprintf("%.2f", 100 * ($summary{$sid}{$id}{Mapped}/$total)
+                 )
+            } (@refnames, 'any_mapped')]);
     }
 }
 
@@ -145,4 +172,41 @@ sub get_db_names {
 SELECT db_id, name FROM db_info
 SQL
     @$id;
+}
+
+sub to_tab {
+    say join("\t", ref $_[0] eq 'ARRAY' ? @{$_[0]} : $_[0])
+}
+
+sub md_heading {
+    my ($str) = @_;
+    say "## $str";
+}
+
+sub md_tbl_header {
+    my ($colnames) = @_;
+    say '|'.join("|", @$colnames).'|';
+    say '|'.join("|",
+        map {
+            ':'.
+            ('-' x (length($_) - 1))
+            }
+        @$colnames ).'|'
+}
+
+sub textile_heading {
+    my ($str) = @_;
+    say "h2. $str\n";
+}
+
+sub textile_tbl_header {
+    my ($colnames) = @_;
+    #say '|^.';
+    say '|_. '.join("|_. ", @$colnames).'|';
+    #say '|-.';
+}
+
+sub generic_row {
+    my ($data) = @_;
+    say '|'.join("|", @$data).'|';
 }

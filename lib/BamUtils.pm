@@ -204,9 +204,12 @@ sub check_query_sorted {
         die "BAM file does not have sort order"
     }
     
-    if ( $so !~ /query/i) {
-        die "BAM file is not query name-sorted, SO: $so"
-    }
+    # we count unsorted as name-sorted as this is how Novoalign prints SAM info
+    # (order in file with pairs next to one another)
+    
+    #if ( ($so ne 'query') || ( $so ne 'unsorted')) {
+    #    die "BAM file is not query name-sorted, SO: [$so]"
+    #}
     
     1;
 }

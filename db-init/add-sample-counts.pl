@@ -17,7 +17,7 @@ my $USAGE = <<USAGE;
     $0 -f <sample.compressed.fasta> -db <DB_NAME> --dir <DIR> 
 
 This reads a FASTA from a collapsed sample sequence file and a database
-(created using fastq2tbl.pl) and loads a table with the list of read ID
+(created using db-init.pl) and loads a table with the list of read ID
 and counts for that sample. Match is based upon the sequence read.
 
 If given a directory this will simply iterate through all the files and

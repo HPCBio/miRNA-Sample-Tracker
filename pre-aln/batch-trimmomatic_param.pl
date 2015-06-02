@@ -14,14 +14,14 @@ my %args = (
     dir         => '.',
     ext         => 'fastq.gz',
     threads     => 8,
-    adaptors    => '/home/apps/trimmomatic/trimmomatic-0.30/adapters/TruSeq3-SE.fa',
+    adapters    => '/home/apps/trimmomatic/trimmomatic-0.30/adapters/TruSeq3-SE.fa',
     # TODO: allow for optional steps (e.g. an array)
     leading     => 30,
     trailing    => 30,
     minlen      => 15,
     seed_mm     => 2,
     pal_clip    => 30,
-    sim_clip    => 10,
+    sim_clip    => 7,
     name        => 'trimmomatic_trim',
     queue       => 'biotech'
 );
@@ -31,7 +31,7 @@ GetOptions( \%args,
     'ext:s',
     'dir:s',
     'threads:i',
-    'adaptors:s',
+    'adapters:s',
     'leading:i',
     'trailing:i',
     'minlen:i',
@@ -78,13 +78,13 @@ FQ_R1=`cat $file_list | tail -n +\${PBS_ARRAYID} | head -1`
 
 SAMPLE_R1=\$( basename \$FQ_R1 .$args{ext} )
 
-if [ ! -d trimmed_seqs_test ]; then
-    mkdir trimmed_seqs_test
+if [ ! -d processed_seqs ]; then
+    mkdir processed_seqs
 fi
 
 set -x
 
-if [ ! -e "trimmed_seqs_test/\${SAMPLE_R1}.trimmed.fastq.gz" ]; then
+if [ ! -e "processed_seqs/\${SAMPLE_R1}.trimmed.fastq.gz" ]; then
     for STEP in \$( seq 2 3 ); do
         java -Xmx6g -jar \$CLASSPATH/trimmomatic-0.30.jar SE \\
             -threads \$PBS_NUM_PPN \\
@@ -92,7 +92,7 @@ if [ ! -e "trimmed_seqs_test/\${SAMPLE_R1}.trimmed.fastq.gz" ]; then
             -trimlog /state/partition1/\${SAMPLE_R1}.\$STEP.trimlog.txt \\
             \$FQ_R1 \\
             /state/partition1/\${SAMPLE_R1}.\$STEP.trimmed.fastq.gz \\
-            ILLUMINACLIP:$args{adaptors}:$args{seed_mm}:$args{pal_clip}:\$STEP \\
+            ILLUMINACLIP:$args{adapters}:$args{seed_mm}:$args{pal_clip}:\$STEP \\
             LEADING:$args{leading} \\
             TRAILING:$args{trailing} \\
             MINLEN:$args{minlen} 2> /state/partition1/\${SAMPLE_R1}.\$STEP.trimmomatic.summary.log
@@ -101,7 +101,7 @@ if [ ! -e "trimmed_seqs_test/\${SAMPLE_R1}.trimmed.fastq.gz" ]; then
 
         pigz -9 -p \$PBS_NUM_PPN /state/partition1/\${SAMPLE_R1}.\$STEP.trimlog.txt
 
-        mv /state/partition1/\${SAMPLE_R1}.\$STEP.* ./trimmed_seqs_test
+        mv /state/partition1/\${SAMPLE_R1}.\$STEP.* ./processed_seqs
     done
 fi
 

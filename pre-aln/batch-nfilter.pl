@@ -55,6 +55,8 @@ my $shell_script = <<SCRIPT; # heredoc
 
 cd \$PBS_O_WORKDIR
 
+set -x
+
 FQ_R1=`cat $file_list | tail -n +\${PBS_ARRAYID} | head -1`
 
 SAMPLE_R1=\$( basename \$FQ_R1 .$args{ext} )
@@ -63,14 +65,13 @@ if [ ! -d nfiltered_seqs ]; then
     mkdir nfiltered_seqs
 fi
 
-set -x
-
 if [ ! -e "processed_seqs/\${SAMPLE_R1}.trimmed.nfiltered.fastq.gz" ]; then
-    filter_ns.pl \$FQ_R1 \$SAMPLE_R1 
+    filter_ns.pl \$FQ_R1 \$SAMPLE_R1 > /state/partition1/\${SAMPLE_R1}.trimmed.nfiltered.fastq
 
-    pigz -p \$PBS_NP -9 /state/partition1/\${SAMPLE_R1}.trimmed.nfiltered.fastq
+    pigz -p \$PBS_NP /state/partition1/\${SAMPLE_R1}.trimmed.nfiltered.fastq
 
-    mv /state/partition1/\${SAMPLE_R1}* ./nfiltered_seqs
+    mv /state/partition1/\${SAMPLE_R1}.* ./nfiltered_seqs
+    mv \${SAMPLE_R1}.* ./nfiltered_seqs
 fi
 
 SCRIPT
