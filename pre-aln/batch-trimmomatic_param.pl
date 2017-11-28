@@ -14,7 +14,7 @@ my %args = (
     dir         => '.',
     ext         => 'fastq.gz',
     threads     => 8,
-    adaptors    => '/home/apps/trimmomatic/trimmomatic-0.30/adapters/TruSeq3-SE.fa',
+    adaptors    => '/home/apps/trimmomatic/trimmomatic-0.32/adapters/TruSeq3-SE.fa',
     # TODO: allow for optional steps (e.g. an array)
     leading     => 30,
     trailing    => 30,
@@ -69,8 +69,8 @@ my $shell_script = <<SCRIPT; # heredoc
 #PBS -o $scriptdir/${ts}_$args{name}.o
 #PBS -q $args{queue}
 
-module load trimmomatic/0.30
-CLASSPATH=/home/apps/trimmomatic/trimmomatic-0.30
+module load trimmomatic/0.32
+CLASSPATH=/home/apps/trimmomatic/trimmomatic-0.32
 
 cd \$PBS_O_WORKDIR
 
@@ -78,31 +78,29 @@ FQ_R1=`cat $file_list | tail -n +\${PBS_ARRAYID} | head -1`
 
 SAMPLE_R1=\$( basename \$FQ_R1 .$args{ext} )
 
-if [ ! -d trimmed_seqs_test ]; then
-    mkdir trimmed_seqs_test
+if [ ! -d trimmed_seqs ]; then
+    mkdir trimmed_seqs
 fi
 
 set -x
 
 if [ ! -e "trimmed_seqs_test/\${SAMPLE_R1}.trimmed.fastq.gz" ]; then
-    for STEP in \$( seq 2 3 ); do
-        java -Xmx6g -jar \$CLASSPATH/trimmomatic-0.30.jar SE \\
+        java -Xmx6g -jar \$CLASSPATH/trimmomatic-0.32.jar SE \\
             -threads \$PBS_NUM_PPN \\
             -phred33 \\
-            -trimlog /state/partition1/\${SAMPLE_R1}.\$STEP.trimlog.txt \\
+            -trimlog /state/partition1/\${SAMPLE_R1}.trimlog.txt \\
             \$FQ_R1 \\
-            /state/partition1/\${SAMPLE_R1}.\$STEP.trimmed.fastq.gz \\
-            ILLUMINACLIP:$args{adaptors}:$args{seed_mm}:$args{pal_clip}:\$STEP \\
+            /state/partition1/\${SAMPLE_R1}.trimmed.fastq.gz \\
+            ILLUMINACLIP:$args{adaptors}:2:17:3 \\
             LEADING:$args{leading} \\
             TRAILING:$args{trailing} \\
-            MINLEN:$args{minlen} 2> /state/partition1/\${SAMPLE_R1}.\$STEP.trimmomatic.summary.log
+            MINLEN:$args{minlen} 2> /state/partition1/\${SAMPLE_R1}.trimmomatic.summary.log
 
-        cut -d ' ' -f 3 /state/partition1/\${SAMPLE_R1}.\$STEP.trimlog.txt | sort | uniq -c > /state/partition1/\${SAMPLE_R1}.\$STEP.trimmomatic.hist.txt
+        cut -d ' ' -f 3 /state/partition1/\${SAMPLE_R1}.trimlog.txt | sort | uniq -c > /state/partition1/\${SAMPLE_R1}.trimmomatic.hist.txt
 
-        pigz -9 -p \$PBS_NUM_PPN /state/partition1/\${SAMPLE_R1}.\$STEP.trimlog.txt
+        pigz -9 -p \$PBS_NUM_PPN /state/partition1/\${SAMPLE_R1}.trimlog.txt
 
-        mv /state/partition1/\${SAMPLE_R1}.\$STEP.* ./trimmed_seqs_test
-    done
+        mv /state/partition1/\${SAMPLE_R1}.* ./trimmed_seqs
 fi
 
 SCRIPT
